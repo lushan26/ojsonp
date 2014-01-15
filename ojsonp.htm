@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Online Front-End Tester</title>
+<style type="text/css">
+
+
+</style>
+<script>
+//debugging & demo utility
+function trace(exp){
+  if(window.console && console.log){
+    if(console.log.apply){
+        console.log.apply(console, arguments);    
+    }else{
+        console.log(arguments);    
+    }
+  }
+}
+</script>
+</head>
+<body>
+
+
+<script>
+/**
+* An ordered-jsonp utility.
+* Usage: ojsonp(url,callback);
+*/
+function origCallback(data){
+  trace('Executed: #'+data.index);
+  throw 1;
+}
+
+var ojsonp = (function(){
+  var index = 0;
+  //functions
+  var callbacks = [];
+  var cursor = 0;
+  var myName = 'ojsonp';
+  var onerror = null;
+  //all
+  var tasks = [];
+  var result = function(url,callback){
+    var idx = index++;
+    //var cbName = '__callback__'+idx;
+    if(url.indexOf('?') === -1){
+      url += '?';
+    }else{
+      url += '&';
+    }
+    url += 'callback='+encodeURIComponent(myName+'.callbacks['+idx+']');
+    var script = document.createElement('script');
+    var parentNode = document.getElementsByTagName('head')[0];
+    parentNode.appendChild(script);
+    var realCallback = callbacks[idx] = function(data){
+      var me = arguments.callee;
+      var taskIndex = me.__index__;
+      tasks[taskIndex] = {
+        callback: window[callback],
+        data: data,
+        index: idx,
+        script: script
+      };
+      if(taskIndex > cursor){
+        return;
+      }else{
+        while(tasks[taskIndex]){
+          var item = tasks[taskIndex];
+          //pass the data on to the original callback
+          try{
+            item.callback.call(window,item.data);
+          }catch(e){
+            item.error = e;
+            if(onerror){
+                onerror.call(window,e);    
+            }
+          }
+          var js = item.script;
+          if(js && js.parentNode){
+            js.parentNode.removeChild(js);
+          }
+          //delete ojsonp[item.name];
+          taskIndex++;
+        }
+        cursor = taskIndex;
+      }
+
+    };
+    realCallback.__index__ = idx;
+    //realCallback.__name__ = cbName;
+    script.src = url;
+  }
+  result.tasks = tasks;
+  result.callbacks = callbacks;
+  result.config = function(key,value){
+      switch(key){
+        case 'onerror':
+            onerror = value;
+            break;  
+        default: '';
+      }
+  };
+  return result;
+})();
+ojsonp.config('onerror',function(err){
+   console.log(err);
+ });
+//test stub
+window.onload = function(){
+  var sleepTime, url, i;
+  for(i=0;i<5;i++){
+    sleepTime = Math.random()*5;
+    url = 'http://gui8.com/script/api/jsonp.php?r=' + Math.random() + '&index=' + i + '&sleep_time=' + sleepTime;
+    ojsonp(url,'origCallback');    
+  }
+  setTimeout(function(){
+    sleepTime = Math.random()*5;
+    url = 'http://gui8.com/script/api/jsonp.php?r=' + Math.random() + '&index=' + i + '&sleep_time=' + sleepTime;
+    ojsonp(url,'origCallback');
+  },5000);
+};
+
+</script>
+</body>
+</html>
